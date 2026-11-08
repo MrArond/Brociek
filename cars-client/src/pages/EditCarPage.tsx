@@ -1,3 +1,4 @@
+import axios from 'axios';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import CarForm from '../components/CarForm';
@@ -14,20 +15,29 @@ export default function EditCarPage() {
   useEffect(() => {
     const controller = new AbortController();
 
-    async function load() {
+    async function loadCar() {
       try {
-        const data = await getCarById(id, controller.signal);
-        setCar(data);
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : 'Nie udało się pobrać samochodu.');
+        setLoading(true);
+        setError(null);
+        const loadedCar = await getCarById(id, controller.signal);
+        setCar(loadedCar);
+      } catch (caughtError) {
+        if (axios.isCancel(caughtError)) {
+          return;
+        }
+        setError(caughtError instanceof Error ? caughtError.message : 'Wystąpił nieznany błąd.');
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     }
 
-    void load();
-    return () => controller.abort();
+    void loadCar();
+
+    return () => {
+      controller.abort();
+    };
   }, [id]);
 
   async function handleSave(updated: NewCar) {

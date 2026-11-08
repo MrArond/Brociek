@@ -1,7 +1,9 @@
+import axios from 'axios';
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router';
 import type { Car } from '../models/Car';
 import { getCarById } from '../services/carService';
+import { useCarUiStore } from '../store/useCarUiStore';
 
 export default function CarDetailsPage() {
   const { id = '' } = useParams();
@@ -9,23 +11,35 @@ export default function CarDetailsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const isFavorite = useCarUiStore(state => state.favoriteCarIds.includes(id));
+  const toggleFavorite = useCarUiStore(state => state.toggleFavorite);
+
   useEffect(() => {
     const controller = new AbortController();
 
-    async function load() {
+    async function loadCar() {
       try {
-        const data = await getCarById(id, controller.signal);
-        setCar(data);
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : 'Nie udało się pobrać samochodu.');
+        setLoading(true);
+        setError(null);
+        const loadedCar = await getCarById(id, controller.signal);
+        setCar(loadedCar);
+      } catch (caughtError) {
+        if (axios.isCancel(caughtError)) {
+          return;
+        }
+        setError(caughtError instanceof Error ? caughtError.message : 'Wystąpił nieznany błąd.');
       } finally {
-        if (!controller.signal.aborted) setLoading(false);
+        if (!controller.signal.aborted) {
+          setLoading(false);
+        }
       }
     }
 
-    void load();
-    return () => controller.abort();
+    void loadCar();
+
+    return () => {
+      controller.abort();
+    };
   }, [id]);
 
   if (loading) return <p>Ładowanie...</p>;
@@ -34,9 +48,19 @@ export default function CarDetailsPage() {
 
   return (
     <section>
-      <h2>
-        {car.brand} {car.model}
-      </h2>
+      <div className="page-header">
+        <h2>
+          {car.brand} {car.model}
+        </h2>
+        <button
+          type="button"
+          className={isFavorite ? 'favorite-button active-favorite' : 'favorite-button'}
+          onClick={() => toggleFavorite(car.id)}
+          aria-pressed={isFavorite}
+        >
+          {isFavorite ? '★ Ulubiony' : '☆ Do ulubionych'}
+        </button>
+      </div>
 
       <dl className="car-details">
         <dt>Liczba drzwi</dt>
